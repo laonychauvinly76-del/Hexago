@@ -35,21 +35,45 @@ npm start
 
 ---
 
-## Étape 2 — Connecter l'IA Mistral (3 clics, gratuit pour commencer)
+## Étape 2 — Activer les réponses IA (gratuit, sans carte bancaire)
 
-1. Allez sur **https://console.mistral.ai** et créez un compte (vous pouvez vous connecter avec Google).
-2. Une fois connecté, dans le menu de gauche, cliquez sur **« API Keys »**.
-3. Cliquez sur **« Create new key »**, donnez-lui un nom (par exemple `hexago`), puis copiez la clé affichée. ⚠️ Elle ne sera plus affichée après : gardez-la dans un fichier personnel, ne la montrez à personne.
-4. Dans le dossier du projet, copiez le fichier `.env.example` et renommez la copie **`.env`** (avec un point au début).
-5. Ouvrez ce fichier `.env` et remplacez `collez_votre_cle_mistral_ici` par votre clé, comme ceci :
+HEXAGO accepte **plusieurs IA**, par ordre de priorité : Mistral, puis OpenRouter, puis Google Gemini. **Une seule suffit.**
+
+### Option A — Google Gemini (recommandée pour débuter : 100 % gratuit, sans carte)
+
+1. Allez sur **https://aistudio.google.com/apikey** et connectez-vous avec un compte Google.
+2. Cliquez **« Create API key »**, copiez la clé.
+3. Dans votre fichier `.env`, collez-la ainsi :
 
 ```
-MISTRAL_API_KEY=votre_vraie_cle_ici
+GEMINI_API_KEY=votre_cle_google_ici
 ```
 
-6. Relancez le serveur (`npm start`). Le bouton **✨ Réponse IA** est maintenant actif : posez une question, HEXAGO cherchera sur le web et l'IA vous répondra **avec ses sources**.
+### Option B — Mistral AI (l'IA française 🇫🇷)
 
-> 💡 Le modèle utilisé par défaut (`mistral-small-latest`) est rapide et économique. Vous pouvez en changer dans `.env` avec `MISTRAL_MODEL`.
+Le plan gratuit de Mistral (« Free » / « Experimental ») est restreint pour les nouveaux comptes : la console peut afficher « Upgrade to activate your API keys ». Si vous avez un abonnement ou si l'accès gratuit est réactivé :
+
+1. **https://console.mistral.ai** → **« API Keys »** → **« Create new key »**.
+2. Dans votre fichier `.env` :
+
+```
+MISTRAL_API_KEY=votre_cle_mistral_ici
+MISTRAL_MODEL=mistral-small-latest
+```
+
+### Option C — OpenRouter (des modèles gratuits, une seule clé)
+
+1. **https://openrouter.ai** → créez un compte → **« Keys »** → **« Create Key »**.
+2. Dans votre fichier `.env` :
+
+```
+OPENROUTER_API_KEY=votre_cle_openrouter_ici
+OPENROUTER_MODEL=openrouter/free
+```
+
+> Le modèle `openrouter/free` choisit automatiquement un modèle gratuit disponible (environ 50 requêtes/jour). Vérifiez les modèles gratuits du moment sur https://openrouter.ai/models (filtre « Price: Free »).
+
+Ensuite, relancez le serveur (`npm start`) : le bouton **✨ Réponse IA** est actif. HEXAGO cherchera sur le web et l'IA vous répondra **avec ses sources**. Si vous configurez plusieurs clés, Mistral est utilisé en priorité, puis OpenRouter, puis Gemini.
 
 ---
 
@@ -76,8 +100,10 @@ Le plus simple pour débuter : **Render** ([render.com](https://render.com)), gr
 1. Mettez ce projet sur votre compte GitHub (demandez à votre assistant de le pousser sur un dépôt).
 2. Sur Render, cliquez **« New + »** → **« Web Service »** → connectez votre compte GitHub et choisissez le dépôt HEXAGO.
 3. Laissez les réglages par défaut (Render détecte Node.js tout seul). Commande de démarrage : `npm start`.
-4. Avant de cliquer sur « Create Web Service », ouvrez **« Advanced » → « Add Environment Variable »** et ajoutez :
-   - `MISTRAL_API_KEY` → votre clé Mistral
+4. Avant de cliquer sur « Create Web Service », ouvrez **« Advanced » → « Add Environment Variable »** et ajoutez au moins une de ces clés :
+   - `GEMINI_API_KEY` → votre clé Google (gratuit, recommandé)
+   - `MISTRAL_API_KEY` → votre clé Mistral (si vous en avez une)
+   - `OPENROUTER_API_KEY` → votre clé OpenRouter (facultatif)
    - `BRAVE_API_KEY` → votre clé Brave (facultatif)
 5. Cliquez **« Create Web Service »**. Après 1 à 2 minutes, Render vous donne une adresse du type `https://hexago.onrender.com` : **votre moteur de recherche est accessible au public**. 🌍
 

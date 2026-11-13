@@ -94,6 +94,12 @@ async function askAi(query) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Erreur de l'IA");
+    const labels = {
+      mistral: "par Mistral AI 🇫🇷",
+      openrouter: "via OpenRouter · modèle gratuit",
+      gemini: "par Google Gemini · gratuit",
+    };
+    document.getElementById("aiPowered").textContent = labels[data.provider] || data.provider;
     renderAnswer(data.answer);
     aiSources.innerHTML =
       "<strong style='font-size:13px'>Sources utilisées :</strong>" +

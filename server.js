@@ -134,53 +134,98 @@ function buildContext(results) {
     .join("\n\n");
 }
 
-async function askMistral(question, results) {
-  const apiKey = process.env.MISTRAL_API_KEY;
-  if (!apiKey) {
+function aiProviders() {
+  const providers = [];
+  if (process.env.MISTRAL_API_KEY) {
+    providers.push({
+      name: "mistral",
+      url: "https://api.mistral.ai/v1/chat/completions",
+      model: process.env.MISTRAL_MODEL || "mistral-small-latest",
+      key: process.env.MISTRAL_API_KEY,
+      headers: {},
+    });
+  }
+  if (process.env.OPENROUTER_API_KEY) {
+    providers.push({
+      name: "openrouter",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      model: process.env.OPENROUTER_MODEL || "openrouter/free",
+      key: process.env.OPENROUTER_API_KEY,
+      headers: {
+        "HTTP-Referer": process.env.PUBLIC_URL || "https://hexago.app",
+        "X-Title": "HEXAGO",
+      },
+    });
+  }
+  if (process.env.GEMINI_API_KEY) {
+    providers.push({
+      name: "gemini",
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+      key: process.env.GEMINI_API_KEY,
+      headers: {},
+    });
+  }
+  return providers;
+}
+
+async function askAI(question, results) {
+  const providers = aiProviders();
+  if (providers.length === 0) {
     const error = new Error(
-      "La clé API Mistral n'est pas configurée. Ajoutez MISTRAL_API_KEY dans le fichier .env."
+      "Aucune IA configurée. Ajoutez GEMINI_API_KEY (gratuit) ou MISTRAL_API_KEY dans le fichier .env."
     );
     error.status = 503;
     throw error;
   }
   const context = buildContext(results);
-  const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Tu es HEXAGO, un moteur de recherche intelligent européen. " +
+        "Tu réponds toujours en français, de façon claire, factuelle et concise. " +
+        "Tu te bases UNIQUEMENT sur les sources web fournies ci-dessous. " +
+        "Cite tes sources avec des numéros entre crochets, par exemple [1] ou [2], " +
+        "en te référant aux [Source N] du contexte. " +
+        "Si les sources ne permettent pas de répondre, dis-le honnêtement. " +
+        "Structure ta réponse en paragraphes courts. Termine par une ligne 'Sources :' " +
+        "listant les numéros utilisés avec leur domaine.",
     },
-    body: JSON.stringify({
-      model: process.env.MISTRAL_MODEL || "mistral-small-latest",
-      temperature: 0.3,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Tu es HEXAGO, un moteur de recherche intelligent européen. " +
-            "Tu réponds toujours en français, de façon claire, factuelle et concise. " +
-            "Tu te bases UNIQUEMENT sur les sources web fournies ci-dessous. " +
-            "Cite tes sources avec des numéros entre crochets, par exemple [1] ou [2], " +
-            "en te référant aux [Source N] du contexte. " +
-            "Si les sources ne permettent pas de répondre, dis-le honnêtement. " +
-            "Structure ta réponse en paragraphes courts. Termine par une ligne 'Sources :' " +
-            "listant les numéros utilisés avec leur domaine.",
+    {
+      role: "user",
+      content: `Question de l'utilisateur : ${question}\n\nSources web trouvées :\n\n${context}`,
+    },
+  ];
+  const errors = [];
+  for (const provider of providers) {
+    try {
+      const response = await fetch(provider.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${provider.key}`,
+          ...provider.headers,
         },
-        {
-          role: "user",
-          content: `Question de l'utilisateur : ${question}\n\nSources web trouvées :\n\n${context}`,
-        },
-      ],
-    }),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    const error = new Error(`Mistral a répondu avec le code ${response.status} : ${text}`);
-    error.status = response.status;
-    throw error;
+        body: JSON.stringify({
+          model: provider.model,
+          temperature: 0.3,
+          messages,
+        }),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`${provider.name} (code ${response.status}) : ${text.slice(0, 200)}`);
+      }
+      const data = await response.json();
+      return { text: data.choices[0].message.content, provider: provider.name };
+    } catch (error) {
+      errors.push(error.message);
+    }
   }
-  const data = await response.json();
-  return data.choices[0].message.content;
+  const failure = new Error(`Toutes les IA ont échoué. Détails : ${errors.join(" | ")}`);
+  failure.status = 502;
+  throw failure;
 }
 
 app.get("/api/search", async (req, res) => {
@@ -207,10 +252,11 @@ app.post("/api/answer", async (req, res) => {
     if (results.length === 0) {
       return res.status(404).json({ error: "Aucune source trouvée pour cette question." });
     }
-    const answer = await askMistral(question, results);
+    const { text: answer, provider } = await askAI(question, results);
     res.json({
       question,
       answer,
+      provider,
       sources: results.map((r) => ({ title: r.title, url: r.url })),
     });
   } catch (error) {
@@ -224,7 +270,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     service: "HEXAGO",
-    mistralConfigured: Boolean(process.env.MISTRAL_API_KEY),
+    aiProviders: aiProviders().map((p) => p.name),
     braveConfigured: Boolean(process.env.BRAVE_API_KEY),
   });
 });
